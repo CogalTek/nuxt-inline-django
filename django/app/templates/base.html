@@ -1,24 +1,48 @@
 {% load static %}
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nuxt + Django</title>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>{% block title %}Nuxt inline + Django{% endblock %}</title>
+
+	{% if not DEBUG %}
+		<!-- PROD : fichiers Nuxt buildés, déjà copiés sous /static/nuxt-inline/_nuxt/ -->
+		<script type="importmap">{
+			"imports": { "#entry": "{% static 'nuxt-inline/_nuxt/7qlZY8bo.js' %}" }
+		}</script>
+
+		<link rel="stylesheet" href="{% static 'nuxt-inline/_nuxt/entry.CZwwQRfb.css' %}" crossorigin>
+		<link rel="modulepreload" as="script" crossorigin href="{% static 'nuxt-inline/_nuxt/7qlZY8bo.js' %}">
+		<link rel="prefetch" as="script" crossorigin href="{% static 'nuxt-inline/_nuxt/BrkKqW4S.js' %}">
+		<link rel="prefetch" as="style" crossorigin href="{% static 'nuxt-inline/_nuxt/error-404.DqZyKpgk.css' %}">
+		<link rel="prefetch" as="script" crossorigin href="{% static 'nuxt-inline/_nuxt/BSh3K7Dk.js' %}">
+		<link rel="prefetch" as="script" crossorigin href="{% static 'nuxt-inline/_nuxt/Ec2mZwbq.js' %}">
+		<link rel="prefetch" as="style" crossorigin href="{% static 'nuxt-inline/_nuxt/error-500.CZqNkBuR.css' %}">
+		<link rel="prefetch" as="script" crossorigin href="{% static 'nuxt-inline/_nuxt/BzKMc2oH.js' %}">
+	{% endif %}
+
+	{% block head %}{% endblock %}
 </head>
 <body>
-    <div id="app"></div>
+	<header>{% block header %}{% endblock %}</header>
 
-    {% if debug %}
-        <!-- Mode DEV: Scripts chargés via Nginx (pas besoin de spécifier le port) -->
-        <script type="module" src="/@vite/client"></script>
-        <script type="module" src="/entry.js"></script>
-    {% else %}
-        <!-- Mode PROD: Scripts statiques -->
-        <script type="module" src="{% static 'nuxt-inline/_nuxt/entry.js' %}"></script>
-    {% endif %}
+	<main>
+		{% block content %}{% endblock %}
 
-    <!-- Exemple: Monter un composant Nuxt -->
-    <div data-nuxt-component="MyComponent" data-props='{"msg":"Hello from Django!"}'></div>
+		<!-- Exemple de placeholder de composant Nuxt -->
+		<div data-nuxt-component="UserCard" data-props='{"id":123,"size":"sm"}'></div>
+	</main>
+
+	{% if DEBUG %}
+		<!-- DEV : HMR via le proxy nginx vers le conteneur Nuxt -->
+		<script type="module" src="/@vite/client"></script>
+		<script type="module" src="/_nuxt/entry.mjs"></script>
+	{% else %}
+		<!-- PROD : script d’entrée Nuxt -->
+		<script type="module" src="{% static 'nuxt-inline/_nuxt/7qlZY8bo.js' %}" crossorigin></script>
+	{% endif %}
+
+	{% block scripts %}{% endblock %}
 </body>
 </html>
