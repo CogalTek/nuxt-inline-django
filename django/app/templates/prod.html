@@ -1,0 +1,17 @@
+{% load static nuxt %}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nuxt Inline in Django (Prod)</title>
+    {% nuxt_assets 'nuxt-inline' %}
+</head>
+<body>
+    <!-- Hidden Nuxt root so Nuxt boots and runs plugins in prod -->
+    <div id="nuxt-inline-root" style="display:none"></div>
+
+    <!-- Placeholders anywhere in body -->
+    <div data-nuxt-component="MyComponent" data-props='{"msg":"Hello from Django (prod)"}'></div>
+</body>
+</html>

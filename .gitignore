@@ -1,0 +1,16 @@
+# Python / Django
+*.pyc
+__pycache__/
+db.sqlite3
+
+# Node / Nuxt
+node_modules/
+.nuxt/
+.output/
+.vercel/
+.vscode/
+.idea/
+
+# Docker
+*.pid
+*.log

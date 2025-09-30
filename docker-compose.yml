@@ -1,0 +1,21 @@
+version: "3.9"
+services:
+    django:
+        build: ./django
+        ports:
+            - "8000:8000"
+        environment:
+            - DEBUG=1
+        volumes:
+            - ./django:/app
+        command: python manage.py runserver 0.0.0.0:8000
+
+    nuxt:
+        build: ./nuxt-inline
+        ports:
+            - "3000:3000"
+        environment:
+            - NODE_ENV=development
+        volumes:
+            - ./nuxt-inline:/app
+        command: npx nuxi dev --port 3000 --host 0.0.0.0
