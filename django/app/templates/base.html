@@ -1,22 +1,24 @@
-<!doctype html>
+{% load static %}
+<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Nuxt Inline in Django (Dev)</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nuxt + Django</title>
 </head>
 <body>
-    <h1>start</h1>
-    <!-- Hidden Nuxt root so Nuxt boots and runs plugins -->
-    <div id="nuxt-inline-root" style="display:none"></div>
+    <div id="app"></div>
 
-    <!-- Placeholders you can drop anywhere -->
-    <div data-nuxt-component="MyComponent" data-props='{"msg":"Hello from Django (dev)"}'></div>
+    {% if debug %}
+        <!-- Mode DEV: Scripts chargés via Nginx (pas besoin de spécifier le port) -->
+        <script type="module" src="/@vite/client"></script>
+        <script type="module" src="/entry.js"></script>
+    {% else %}
+        <!-- Mode PROD: Scripts statiques -->
+        <script type="module" src="{% static 'nuxt-inline/_nuxt/entry.js' %}"></script>
+    {% endif %}
 
-    <!-- DEV SCRIPTS: Nuxt/Vite HMR + entry -->
-    <script type="module" src="http://localhost:3000/@vite/client" crossorigin="anonymous"></script>
-    <!-- Tip: If this path ever changes, open http://localhost:3000/ and copy the entry script path -->
-    <script type="module" src="http://localhost:3000/_nuxt/app/node_modules/nuxt/dist/app/entry.js" crossorigin="anonymous"></script>
-    <h1>end</h1>
+    <!-- Exemple: Monter un composant Nuxt -->
+    <div data-nuxt-component="MyComponent" data-props='{"msg":"Hello from Django!"}'></div>
 </body>
 </html>

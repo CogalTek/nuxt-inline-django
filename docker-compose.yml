@@ -2,8 +2,8 @@ version: "3.9"
 services:
     django:
         build: ./django
-        ports:
-            - "8000:8000"
+        expose:
+            - "8000"
         environment:
             - DEBUG=1
         volumes:
@@ -12,10 +12,22 @@ services:
 
     nuxt:
         build: ./nuxt-inline
-        ports:
-            - "3000:3000"
+        expose:
+            - "3000"
         environment:
             - NODE_ENV=development
         volumes:
             - ./nuxt-inline:/app
+            - /app/node_modules
         command: npx nuxi dev --port 3000 --host 0.0.0.0
+
+    nginx:
+        image: nginx:alpine
+        ports:
+            - "80:80"
+        volumes:
+            - ./nginx.conf:/etc/nginx/nginx.conf:ro
+            - ./django/app/static:/static:ro
+        depends_on:
+            - django
+            - nuxt

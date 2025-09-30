@@ -1,5 +1,11 @@
 import os
+import mimetypes
 from pathlib import Path
+
+# Ajouter AVANT toute autre configuration
+mimetypes.add_type("application/javascript", ".js", True)
+mimetypes.add_type("application/javascript", ".mjs", True)
+mimetypes.add_type("text/css", ".css", True)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -15,7 +21,6 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "app",
-    # "csp",  # uncomment if you add CSP settings below
 ]
 
 MIDDLEWARE = [
@@ -26,7 +31,6 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    # "csp.middleware.CSPMiddleware",  # optional
 ]
 
 ROOT_URLCONF = "mysite.urls"
@@ -60,7 +64,7 @@ STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "app" / "static"]
 STATIC_ROOT = BASE_DIR / "static-collect"
 
-# If you use CSP in dev, allow Nuxt dev server for scripts & HMR WS
-# CSP_DEFAULT_SRC = ("'self'",)
-# CSP_SCRIPT_SRC = ("'self'", "http://localhost:3000")
-# CSP_CONNECT_SRC = ("'self'", "ws://localhost:3000", "http://localhost:3000")
+# Désactiver certaines sécurités en DEV pour faciliter le développement
+if DEBUG:
+    SECURE_CROSS_ORIGIN_OPENER_POLICY = None
+    X_FRAME_OPTIONS = "SAMEORIGIN"

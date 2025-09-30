@@ -1,9 +1,12 @@
 from django.shortcuts import render
+from django.conf import settings
 
 def home(request):
-    # Dev HMR (Nuxt dev server at :3000)
-    return render(request, "base.html", {})
+    return render(request, "base.html", {
+        "debug": settings.DEBUG
+    })
 
 def prod(request):
-    # Production template that reads manifest and injects assets
-    return render(request, "prod.html", {})
+    return render(request, "prod.html", {
+        "debug": False
+    })
