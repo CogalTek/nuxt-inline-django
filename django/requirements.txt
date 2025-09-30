@@ -1,3 +1,4 @@
 Django==4.2.15
+django-cors-headers==4.3.1
 # django-csp is optional; uncomment CSP config in settings.py if you use it
 # django-csp==3.8

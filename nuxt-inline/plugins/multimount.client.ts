@@ -1,6 +1,6 @@
 import { createApp, h, defineAsyncComponent } from 'vue'
 
-export default defineNuxtPlugin(() => {
+export default defineNuxtPlugin((nuxtApp) => {
     if (!process.client) return
 
     const mountAll = async () => {
@@ -9,7 +9,7 @@ export default defineNuxtPlugin(() => {
             const name = el.getAttribute('data-nuxt-component')!
             const propsJson = el.getAttribute('data-props') || '{}'
             let props: Record<string, any> = {}
-            try { props = JSON.parse(propsJson) } catch {}
+            try { props = JSON.parse(propsJson) } catch { }
 
             const loader = async () => {
                 try {
@@ -18,9 +18,9 @@ export default defineNuxtPlugin(() => {
                         () => import(`~/components/${name}/index.vue`),
                     ]
                     for (const c of candidates) {
-                        try { return (await c()).default } catch {}
+                        try { return (await c()).default } catch { }
                     }
-                } catch (e) {}
+                } catch (e) { }
                 console.warn(`[nuxt-multimount] Component not found: ${name}`)
                 return { render: () => h('div', { style: 'color:red' }, `Missing component: ${name}`) }
             }
@@ -28,12 +28,34 @@ export default defineNuxtPlugin(() => {
             const Comp = defineAsyncComponent(loader)
             const app = createApp({ render: () => h(Comp, props) })
 
-            const nuxtApp = useNuxtApp()
-            const vuetify = (nuxtApp as any).$vuetify || (nuxtApp as any).vuetify
-            if (vuetify) app.use(vuetify)
+            try {
+                // Access Vuetify instance provided by the vuetify plugin
+                const vuetify = nuxtApp.$vuetify
+                if (vuetify) {
+                    app.use(vuetify)
+                    console.log('[nuxt-multimount] Vuetify registered for component:', name)
+                } else {
+                    console.warn('[nuxt-multimount] Vuetify not found in nuxtApp.$vuetify')
+                    // Try alternative access methods
+                    const altVuetify = (nuxtApp as any).vuetify || (nuxtApp as any)._vuetify
+                    if (altVuetify) {
+                        app.use(altVuetify)
+                        console.log('[nuxt-multimount] Alternative Vuetify found and registered for:', name)
+                    } else {
+                        console.error('[nuxt-multimount] No Vuetify instance found - v-components will not work')
+                    }
+                }
+            } catch (e) {
+                console.error('[nuxt-multimount] Error accessing Vuetify:', e)
+            }
 
-            app.mount(el as Element)
-            ;(el as HTMLElement).dataset.nuxtMounted = 'true'
+            try {
+                app.mount(el as Element)
+                    ; (el as HTMLElement).dataset.nuxtMounted = 'true'
+            } catch (e) {
+                console.error(`[nuxt-multimount] Failed to mount component ${name}:`, e)
+            }
+            ; (el as HTMLElement).dataset.nuxtMounted = 'true'
         })
     }
 
