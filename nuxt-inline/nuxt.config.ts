@@ -11,6 +11,15 @@ export default defineNuxtConfig({
         { path: '~/components', pathPrefix: false },
     ],
 
+    css: [
+        'vuetify/styles',
+        '@mdi/font/css/materialdesignicons.css',
+    ],
+
+    build: {
+        transpile: ['vuetify'],
+    },
+
     nitro: {
         preset: 'static'
     },
@@ -33,6 +42,19 @@ export default defineNuxtConfig({
                 methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
                 allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
             },
+        },
+        vue: {
+            template: {
+                compilerOptions: {
+                    isCustomElement: (tag) => false,
+                }
+            }
+        },
+        ssr: {
+            noExternal: ['vuetify'],
+        },
+        optimizeDeps: {
+            exclude: ['vuetify'],
         },
     },
 })

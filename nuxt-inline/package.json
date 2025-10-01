@@ -8,14 +8,15 @@
     },
     "dependencies": {
         "@mdi/font": "^7.4.47",
+        "sass-loader": "^16.0.5",
         "vue": "^3.4.0",
-        "vuetify": "^3.7.0"
+        "vuetify": "^3.10.3"
     },
     "devDependencies": {
         "@vitejs/plugin-vue": "^5.0.4",
+        "nuxi": "^3.12.0",
         "nuxt": "^3.12.0",
-        "sass": "^1.77.0",
-        "typescript": "^5.4.0",
-        "nuxi": "^3.12.0"
+        "sass": "^1.93.2",
+        "typescript": "^5.4.0"
     }
 }
