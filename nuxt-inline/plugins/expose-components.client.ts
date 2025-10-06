@@ -16,3 +16,6 @@ export default defineNuxtPlugin((_nuxtApp) => {
 	// Tu peux en ajouter d'autres ici
 	window.NUXT_INLINE_COMPONENTS.UserCard = UserCard
 })
+
+// ajout automatique des composants
+// si inutile, retirer
