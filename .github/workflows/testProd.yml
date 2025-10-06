@@ -10,8 +10,13 @@ jobs:
       - name: Récupérer le code
         uses: actions/checkout@v4
 
-      - name: Build Nuxt
+      - name: Build & Export static
         run: |
           cd nuxt-inline
-          npm i && nuxi generate
-          mv ./output/public/ ../django/app/static/nuxt-inline/
+          npm ci
+          npx nuxi generate
+          OUT=".output/public"
+          if [ ! -d "$OUT" ] && [ -d "dist" ]; then OUT="dist"; fi
+          mkdir -p ../django/app/static/nuxt-inline
+          rsync -a --delete "$OUT"/ ../django/app/static/nuxt-inline/
+
