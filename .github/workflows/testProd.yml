@@ -25,5 +25,16 @@ jobs:
           cd ./django
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          export DEV=0
+          export DEBUG=0
+          export STATIC_ROOT="$(pwd)/static-collect"
           python manage.py migrate
+          python manage.py collectstatic --noinput --clear
+
+      - name: Run tests
+        run: |
+          cd ./django
+          export DEV=0
+          export DEBUG=0
+          python manage.py runserver 0.0.0.0:8000
 

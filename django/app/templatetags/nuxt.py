@@ -27,7 +27,7 @@ def _prefix_root_on_disk(prefix: str) -> str:
 	candidates: List[str] = []
 	if getattr(settings, "STATIC_ROOT", None):
 		candidates.append(os.path.join(settings.STATIC_ROOT, prefix))
-	# chemin source du repo (utile en dev sans collectstatic)
+	# chemin source (utile en dev sans collectstatic)
 	candidates.append(os.path.join(settings.BASE_DIR, "django", "app", "static", prefix))
 	for p in candidates:
 		if os.path.isdir(p):
@@ -35,14 +35,21 @@ def _prefix_root_on_disk(prefix: str) -> str:
 	# par défaut, premier candidat
 	return candidates[0]
 
-def _rewrite_nuxt_urls(html: str, prefix: str) -> str:
+def _rewrite_all_nuxt_paths(html: str, prefix: str) -> str:
 	"""
-	Réécrit les URLs absolues générées par Nuxt (/ _nuxt/...)
-	vers le chemin statique servi par Django: /static/<prefix>/_nuxt/...
+	Réécrit TOUTES les formes de /_nuxt/... vers /static/<prefix>/_nuxt/...
+	- attributs href/src
+	- contenus des <script> (importmap, window.__NUXT__.config, fetch("/_nuxt/..."), etc.)
+	- guillemets simples ou doubles, et fallback sans guillemets
 	"""
-	base = _static_url().rstrip("/") + f"/{prefix}"
-	html = re.sub(r'href="/_nuxt/', f'href="{base}/_nuxt/', html)
-	html = re.sub(r'src="/_nuxt/',  f'src="{base}/_nuxt/',  html)
+	static_url = _static_url().rstrip("/")
+	base = f"{static_url}/{prefix}/_nuxt/"
+	# guillemets doubles
+	html = re.sub(r'("/_nuxt/)', f'"{base}', html)
+	# guillemets simples
+	html = re.sub(r"('/_nuxt/)", f"'{base}", html)
+	# sans guillemets (limite au début de mot pour éviter faux-positifs)
+	html = re.sub(r'(?<![a-zA-Z0-9_])/_nuxt/', base, html)
 	return html
 
 # ------------------------------
@@ -89,8 +96,8 @@ def _load_index_chunks(prefix: str) -> Dict[str, str]:
 		if mm:
 			body_bits.append(mm.group(0))
 
-	head_tags = _rewrite_nuxt_urls("\n".join(head_bits), prefix)
-	mount_tags = _rewrite_nuxt_urls("\n".join(body_bits), prefix)
+	head_tags = _rewrite_all_nuxt_paths("\n".join(head_bits), prefix)
+	mount_tags = _rewrite_all_nuxt_paths("\n".join(body_bits), prefix)
 	return {"head_tags": head_tags, "mount_tags": mount_tags}
 
 # ------------------------------
@@ -102,13 +109,12 @@ def _find_vite_manifest(prefix: str) -> Optional[str]:
 	Essaye différents emplacements usuels pour le manifest Vite:
 	- <static>/<prefix>/.vite/manifest.json (après copie de .output/public/)
 	- <repo>/django/app/static/<prefix>/.vite/manifest.json (sans collectstatic)
-	- fallback: <static>/<prefix>/_nuxt/manifest.json (ancien schéma)
+	- fallback: <static>/<prefix>/_nuxt/manifest.json (ancien schéma, rare)
 	"""
 	root = _prefix_root_on_disk(prefix)
-
 	paths = [
 		os.path.join(root, ".vite", "manifest.json"),
-		os.path.join(root, "_nuxt", "manifest.json"),  # compat ancien code
+		os.path.join(root, "_nuxt", "manifest.json"),
 	]
 	for p in paths:
 		if os.path.exists(p):
@@ -129,7 +135,7 @@ def _tags_from_vite_manifest(prefix: str) -> str:
 
 	# Trouve la première entrée isEntry=true
 	entry_obj: Optional[Dict[str, Any]] = None
-	for k, v in manifest.items():
+	for _, v in manifest.items():
 		if isinstance(v, dict) and v.get("isEntry"):
 			entry_obj = v
 			break
@@ -137,38 +143,44 @@ def _tags_from_vite_manifest(prefix: str) -> str:
 		return ""
 
 	static_base = _static_url().rstrip("/") + f"/{prefix}"
-	nuxt_base = f"{static_base}/_nuxt"   # certains manifests laissent les assets dans _nuxt
-	vite_base = f"{static_base}/.vite"   # css et js référencés via .vite/manifest.json
+	nuxt_base = f"{static_base}/_nuxt"   # si le manifest pointe vers _nuxt
+	vite_base = f"{static_base}/.vite"   # si le manifest pointe vers .vite
 
 	tags: List[str] = []
 
-	# Préchargements des imports (modulepreload)
+	# Préchargements (modulepreload)
 	for imp in entry_obj.get("imports", []):
 		fobj = manifest.get(imp, {})
 		file_ = fobj.get("file")
-		if file_:
-			# Priorité au mapping .vite, sinon _nuxt
-			href = f"{vite_base}/{file_}" if ".vite/" not in file_ else f"{static_base}/{file_}"
-			if file_.startswith("_nuxt/"):
-				href = f"{static_base}/{file_}"
-			tags.append(f'<link rel="modulepreload" href="{href}">')
+		if not file_:
+			continue
+		href = f"{vite_base}/{file_}"
+		if file_.startswith("_nuxt/"):
+			href = f"{static_base}/{file_}"
+		elif file_.startswith(".vite/"):
+			href = f"{static_base}/{file_}"
+		tags.append(f'<link rel="modulepreload" href="{href}">')
 
-	# Feuilles de styles
+	# Styles
 	for css in entry_obj.get("css", []):
 		href = f"{vite_base}/{css}"
 		if css.startswith("_nuxt/"):
 			href = f"{static_base}/{css}"
+		elif css.startswith(".vite/"):
+			href = f"{static_base}/{css}"
 		tags.append(f'<link rel="stylesheet" href="{href}">')
 
-	# Script d’entrée (type="module")
+	# Script d’entrée
 	file_main = entry_obj.get("file")
 	if file_main:
 		src = f"{vite_base}/{file_main}"
-		# si le manifest fournit déjà un chemin commençant par _nuxt/, on respecte
 		if file_main.startswith("_nuxt/"):
+			src = f"{static_base}/{file_main}"
+		elif file_main.startswith(".vite/"):
 			src = f"{static_base}/{file_main}"
 		tags.append(f'<script type="module" src="{src}"></script>')
 
+	# Pas besoin de réécriture ici: on génère déjà des URLs /static/<prefix>/...
 	return "\n".join(tags)
 
 # ------------------------------
@@ -178,7 +190,8 @@ def _tags_from_vite_manifest(prefix: str) -> str:
 @register.simple_tag
 def nuxt_head(prefix: str = "nuxt-inline") -> str:
 	"""
-	Prod (settings.DEV=False): injecte balises depuis index.html exporté (hash-safe).
+	Prod (settings.DEV=False): injecte balises depuis index.html exporté (hash-safe),
+	avec réécriture globale de /_nuxt/.
 	Dev  (settings.DEV=True) : injecte balises construites depuis manifest Vite.
 	"""
 	dev_mode = bool(getattr(settings, "DEV", False))
@@ -190,15 +203,11 @@ def nuxt_head(prefix: str = "nuxt-inline") -> str:
 @register.simple_tag
 def nuxt_mount(prefix: str = "nuxt-inline") -> str:
 	"""
-	Prod: insère les divs et scripts d'initialisation extraits d'index.html.
-	Dev : généralement inutile (le dev server s'en charge), mais on renvoie
-	      les mêmes éléments si présents pour homogénéité quand on utilise
-	      une génération + manifest en dev.
+	Prod: insère les divs et scripts d'initialisation extraits d'index.html,
+	avec réécriture globale de /_nuxt/.
+	Dev : idem si un index.html existe (sinon vide).
 	"""
 	dev_mode = bool(getattr(settings, "DEV", False))
-	if dev_mode:
-		# En dev pur (HMR), tu peux retourner "" si Django ne sert pas l'app.
-		# On laisse cependant le comportement aligné "prod-like" si un index.html existe.
-		pass
+	# même en dev, on peut renvoyer ces éléments si on a un index.html exporté
 	chunks = _load_index_chunks(prefix)
 	return mark_safe(chunks["mount_tags"])
