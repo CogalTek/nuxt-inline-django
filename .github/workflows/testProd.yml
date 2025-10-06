@@ -1,40 +1,122 @@
-name: CI
+name: CI + Pages Preview
 
-on: push
+on:
+  push:
+    branches: [ main ]   # adapte si besoin
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write        # requis pour deploy-pages
+  id-token: write     # requis pour deploy-pages OIDC
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
 
 jobs:
-  build:
+  build-nuxt-and-django:
+    name: Build Nuxt static & Verify Django
     runs-on: ubuntu-latest
 
     steps:
-      - name: Récupérer le code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build & Export static
+      # ---------- Build Nuxt (static) ----------
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install & Generate (Nuxt)
+        working-directory: nuxt-inline
+        env:
+          # IMPORTANT: baseURL pour GitHub Pages
+          NUXT_APP_BASE_URL: /${{ github.event.repository.name }}/
         run: |
-          cd nuxt-inline
           npm ci
           npx nuxi generate
-          OUT=".output/public"
-          if [ ! -d "$OUT" ] && [ -d "dist" ]; then OUT="dist"; fi
-          mkdir -p ../django/app/static/nuxt-inline
-          rsync -a --delete "$OUT"/ ../django/app/static/nuxt-inline/
 
-      - name: Migrate Django
+      - name: Sync to Django static
         run: |
-          cd ./django
+          set -Eeuo pipefail
+          OUT="nuxt-inline/.output/public"
+          if [ ! -d "$OUT" ] && [ -d "nuxt-inline/dist" ]; then OUT="nuxt-inline/dist"; fi
+          mkdir -p django/app/static/nuxt-inline
+          rsync -a --delete "$OUT"/ django/app/static/nuxt-inline/
+
+      # ---------- Vérif Django ----------
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Django deps
+        working-directory: django
+        run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          export DEV=0
-          export DEBUG=0
-          export STATIC_ROOT="$(pwd)/static-collect"
+
+      - name: Django system checks + collectstatic
+        working-directory: django
+        env:
+          DEV: "0"
+          DEBUG: "0"
+          STATIC_ROOT: ${{ github.workspace }}/django/static-collect
+        run: |
+          python manage.py check
           python manage.py migrate
           python manage.py collectstatic --noinput --clear
+          # Petit sanity check
+          test -f static-collect/nuxt-inline/index.html
 
-      - name: Run tests
+      # (optionnel) artefacts pour inspection
+      - name: Upload Django static-collect (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: django-static-collect
+          path: django/static-collect
+
+      - name: Upload Nuxt public (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuxt-public
+          path: nuxt-inline/.output/public
+
+  pages-deploy:
+    name: Deploy to GitHub Pages
+    needs: build-nuxt-and-django
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Rebuild rapide pour produire l’artefact Pages (ou on pourrait re-télécharger l’artifact nuxt-public)
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install & Generate (Nuxt) for Pages
+        working-directory: nuxt-inline
+        env:
+          NUXT_APP_BASE_URL: /${{ github.event.repository.name }}/
         run: |
-          cd ./django
-          export DEV=0
-          export DEBUG=0
-          python manage.py runserver 0.0.0.0:8000
+          npm ci
+          npx nuxi generate
 
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: nuxt-inline/.output/public
+
+      - name: Deploy to Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
