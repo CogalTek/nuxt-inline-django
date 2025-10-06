@@ -13,6 +13,5 @@ jobs:
       - name: Build Nuxt
         run: |
           cd nuxt-inline
-          npm i && npm run build
-          rm -rf ../django/app/static/nuxt-inline/
+          npm i && nuxi generate
           mv ./output/public/ ../django/app/static/nuxt-inline/
