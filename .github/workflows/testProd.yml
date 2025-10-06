@@ -10,5 +10,9 @@ jobs:
       - name: Récupérer le code
         uses: actions/checkout@v4
 
-      - name: Exécuter un script
-        run: echo "Hello World!"
+      - name: Build Nuxt
+        run: |
+          cd nuxt-inline
+          npm run build
+          rm -rf ../django/app/static/nuxt-inline/
+          mv ./output/public/* ../django/app/static/nuxt-inline/

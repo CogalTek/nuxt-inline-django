@@ -10,6 +10,9 @@ node_modules/
 .vercel/
 .vscode/
 .idea/
+.output/
+.dist/
+.env*
 
 # Docker
 *.pid
