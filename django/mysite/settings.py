@@ -5,6 +5,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = "dev-secret"
 DEBUG = os.getenv("DEBUG", "1") == "1"
+DEV = False
 ALLOWED_HOSTS = ["*"]
 
 INSTALLED_APPS = [

@@ -1,4 +1,5 @@
 {% load static %}
+{% load nuxt %}
 <!doctype html>
 <html lang="fr">
 <head>
@@ -7,38 +8,28 @@
 	<title>{% block title %}Nuxt inline + Django{% endblock %}</title>
 
 	{% block head %}{% endblock %}
+
+	{# Injecte automatiquement les balises Nuxt (prod ou dev) #}
+	{% nuxt_head 'nuxt-inline' %}
 </head>
+
 <body>
-	<header>{% block header %}{% endblock %}</header>
+	<header>
+		{% block header %}{% endblock %}
+	</header>
 
 	<main>
 		{% block content %}{% endblock %}
 
-		<!-- Exemple de placeholder de composant Nuxt -->
+		<!-- Exemple de composant ou placeholder Nuxt -->
 		<div data-nuxt-component="UserCard" data-props='{"id":123,"size":"sm"}'></div>
 		<p>here</p>
 		<UserCard :id="123" :size="'sm'" style="width: 20vw;"></UserCard>
 	</main>
 
-	<!-- Nuxt app mount point (hidden since we use multimount) -->
-	<div id="__nuxt" style="display: none;"></div>
+	{# Injecte les divs et scripts d’initialisation Nuxt #}
+	{% nuxt_mount 'nuxt-inline' %}
 
-	<!-- Initialize Nuxt runtime config before loading entry.js -->
-	<script>
-		// Initialize window.__NUXT__ with minimal config to prevent Proxy error
-		// This replaces what would normally be done by Nuxt SSR
-		window.__NUXT__ = window.__NUXT__ || {};
-		window.__NUXT__.config = window.__NUXT__.config || {
-			public: {},  // Empty but defined - prevents undefined access
-			app: {
-				baseURL: "/",
-				buildId: "dev",
-				buildAssetsDir: "/_nuxt/",
-				cdnURL: ""
-			}
-		};
-	</script>
-	<script type="module" src="http://localhost:3000/_nuxt/@vite/client"></script>
-    <script type="module" src="http://localhost:3000/_nuxt/app/node_modules/nuxt/dist/app/entry.js"></script>	{% block scripts %}{% endblock %}
+	{% block scripts %}{% endblock %}
 </body>
 </html>

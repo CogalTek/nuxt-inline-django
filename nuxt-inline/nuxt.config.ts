@@ -5,7 +5,7 @@ export default defineNuxtConfig({
         baseURL: '/',
     },
     experimental: {
-        appManifest: false
+        appManifest: true
     },
     components: [
         { path: '~/components', pathPrefix: false },
