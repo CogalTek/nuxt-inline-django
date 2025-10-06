@@ -1,29 +1,19 @@
-name: CI + Pages Preview
+name: CI (Nuxt build + Django collectstatic + Smoke test)
 
 on:
   push:
-    branches: [ main ]   # adapte si besoin
-  workflow_dispatch:
-
-permissions:
-  contents: read
-  pages: write        # requis pour deploy-pages
-  id-token: write     # requis pour deploy-pages OIDC
-
-concurrency:
-  group: pages
-  cancel-in-progress: true
+    branches: [ main ]     # adapte si besoin
+  workflow_dispatch: {}
 
 jobs:
-  build-nuxt-and-django:
-    name: Build Nuxt static & Verify Django
+  build-and-smoke:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ---------- Build Nuxt (static) ----------
+      # ---------- Build Nuxt (static export) ----------
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -32,13 +22,13 @@ jobs:
       - name: Install & Generate (Nuxt)
         working-directory: nuxt-inline
         env:
-          # IMPORTANT: baseURL pour GitHub Pages
-          NUXT_APP_BASE_URL: /${{ github.event.repository.name }}/
+          # baseURL standard (tu peux ajuster si besoin)
+          NUXT_APP_BASE_URL: /
         run: |
           npm ci
           npx nuxi generate
 
-      - name: Sync to Django static
+      - name: Sync export → Django static
         run: |
           set -Eeuo pipefail
           OUT="nuxt-inline/.output/public"
@@ -46,7 +36,7 @@ jobs:
           mkdir -p django/app/static/nuxt-inline
           rsync -a --delete "$OUT"/ django/app/static/nuxt-inline/
 
-      # ---------- Vérif Django ----------
+      # ---------- Django: deps + collectstatic ----------
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -57,8 +47,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          # pour le smoke test serveur
+          pip install gunicorn whitenoise
 
-      - name: Django system checks + collectstatic
+      - name: Django checks + collectstatic
         working-directory: django
         env:
           DEV: "0"
@@ -66,57 +58,62 @@ jobs:
           STATIC_ROOT: ${{ github.workspace }}/django/static-collect
         run: |
           python manage.py check
-          python manage.py migrate
+          python manage.py migrate --noinput
           python manage.py collectstatic --noinput --clear
-          # Petit sanity check
           test -f static-collect/nuxt-inline/index.html
 
-      # (optionnel) artefacts pour inspection
-      - name: Upload Django static-collect (artifact)
-        uses: actions/upload-artifact@v4
-        with:
-          name: django-static-collect
-          path: django/static-collect
-
-      - name: Upload Nuxt public (artifact)
-        uses: actions/upload-artifact@v4
-        with:
-          name: nuxt-public
-          path: nuxt-inline/.output/public
-
-  pages-deploy:
-    name: Deploy to GitHub Pages
-    needs: build-nuxt-and-django
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      # Rebuild rapide pour produire l’artefact Pages (ou on pourrait re-télécharger l’artifact nuxt-public)
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install & Generate (Nuxt) for Pages
-        working-directory: nuxt-inline
+      # ---------- Smoke test HTTP (Gunicorn + cURL) ----------
+      - name: Smoke test (serve with Gunicorn then curl)
+        working-directory: django
         env:
-          NUXT_APP_BASE_URL: /${{ github.event.repository.name }}/
+          DEV: "0"
+          DEBUG: "0"
+          STATIC_ROOT: ${{ github.workspace }}/django/static-collect
         run: |
-          npm ci
-          npx nuxi generate
+          set -Eeuo pipefail
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
+          # 1) Lancer l'app en arrière-plan (prod-like)
+          nohup gunicorn mysite.wsgi:application --bind 127.0.0.1:8001 --workers 2 --timeout 60 >/tmp/gunicorn.log 2>&1 &
+          GUNI_PID=$!
+          echo "Gunicorn PID=$GUNI_PID"
+          # Attendre que ça réponde
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:8001/ >/dev/null; then break; fi
+            sleep 0.5
+          done
 
-      - name: Upload Pages Artifact
-        uses: actions/upload-pages-artifact@v3
+          # 2) Récupérer la home servie (avec les tags réécrits par nuxt_head)
+          curl -fsSL http://127.0.0.1:8001/ -o /tmp/home.html
+          echo "Home length: $(wc -c </tmp/home.html)"
+
+          # 3) Extraire un JS et un CSS depuis le HTML servi (chemins réécrits)
+          JS_URL=$(grep -oE '/static/nuxt-inline/_nuxt/[A-Za-z0-9._/-]+\.js' /tmp/home.html | head -n1)
+          CSS_URL=$(grep -oE '/static/nuxt-inline/_nuxt/[A-Za-z0-9._/-]+\.css' /tmp/home.html | head -n1)
+
+          echo "Asset JS:  $JS_URL"
+          echo "Asset CSS: $CSS_URL"
+
+          test -n "$JS_URL"  || (echo "❌ Aucun JS trouvé dans la home" && exit 1)
+          test -n "$CSS_URL" || (echo "❌ Aucun CSS trouvé dans la home" && exit 1)
+
+          # 4) Vérifier qu'ils renvoient 200 et un MIME correct
+          curl -fsSI "http://127.0.0.1:8001$JS_URL"  | tee /tmp/js_headers.txt
+          curl -fsSI "http://127.0.0.1:8001$CSS_URL" | tee /tmp/css_headers.txt
+
+          # (optionnel) petites assertions MIME souples
+          grep -Ei 'content-type: (application/javascript|text/javascript)' /tmp/js_headers.txt  >/dev/null || (echo "⚠️ Content-Type JS inattendu"; cat /tmp/js_headers.txt)
+          grep -Ei 'content-type: text/css' /tmp/css_headers.txt >/dev/null || (echo "⚠️ Content-Type CSS inattendu"; cat /tmp/css_headers.txt)
+
+          # 5) Stopper Gunicorn
+          kill $GUNI_PID || true
+
+      # ---------- Artefacts utiles en cas d'échec ----------
+      - name: Upload logs & home HTML (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
         with:
-          path: nuxt-inline/.output/public
-
-      - name: Deploy to Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          name: smoke-debug
+          path: |
+            /tmp/gunicorn.log
+            /tmp/home.html
+            django/static-collect/nuxt-inline/index.html
