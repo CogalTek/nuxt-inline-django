@@ -58,7 +58,7 @@ DATABASES = {
 
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "app" / "static"]
-STATIC_ROOT = BASE_DIR / "static-collect"
+STATIC_ROOT = BASE_DIR / "static-collect" # a changer avec une var d'env
 
 # CORS configuration for development
 CORS_ALLOWED_ORIGINS = [
