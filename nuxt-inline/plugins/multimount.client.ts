@@ -1,12 +1,25 @@
 // plugins/multimount.client.ts
+// Plugin combiné : montage automatique + exposition globale des composants
 import { createApp, h, defineAsyncComponent } from 'vue'
 import { vuetify } from '@/plugins/01.vuetify'
+
+// Déclaration TypeScript pour l'objet global (optionnel)
+declare global {
+	interface Window {
+		NUXT_INLINE_COMPONENTS?: Record<string, any>
+	}
+}
 
 export default defineNuxtPlugin(() => {
 	if (!process.client) return
 
 	// 1) Indexe tous les composants dispo (lazy) via Vite
 	const modules = import.meta.glob('~/components/**/*.{vue,ts}', { eager: false })
+	
+	// Initialise l'objet global pour exposer les composants (optionnel)
+	if (!window.NUXT_INLINE_COMPONENTS) {
+		window.NUXT_INLINE_COMPONENTS = {}
+	}
 
 	type Loader = () => Promise<any>
 	type IndexEntry = { name: string; kebab: string; flat: string; loader: Loader }
@@ -100,7 +113,14 @@ export default defineNuxtPlugin(() => {
 		const loader = resolveComponent(rawName)
 		if (loader) {
 			const mod = await loader()
-			return mod?.default || mod
+			const component = mod?.default || mod
+			
+			// Expose le composant globalement (optionnel - utile pour debug/accès externe)
+			if (window.NUXT_INLINE_COMPONENTS && component) {
+				window.NUXT_INLINE_COMPONENTS[rawName] = component
+			}
+			
+			return component
 		}
 		console.warn(`[nuxt-multimount] Component not found: ${rawName}`)
 		return { render: () => h('div', { style: 'color:red' }, `Missing component: ${rawName}`) }
